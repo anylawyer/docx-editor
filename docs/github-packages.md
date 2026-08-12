@@ -4,8 +4,9 @@ This fork publishes its own build of every workspace package to **GitHub
 Packages** (`npm.pkg.github.com`) so other repositories in the same
 organization can install it without waiting for an upstream npm release.
 
-The upstream packages on npmjs.org are unaffected — `release.yml` still owns
-that path. This is a separate channel.
+This is the only publishing path in this fork. Upstream's release workflow
+(changesets → npmjs.org) is not carried here, so nothing publishes
+`@eigenpal/*` from this repo and nothing consumes the changeset queue.
 
 ## What gets published, and why the name changes
 

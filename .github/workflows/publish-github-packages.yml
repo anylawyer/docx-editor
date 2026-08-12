@@ -2,9 +2,9 @@ name: Publish to GitHub Packages
 
 # Publishes this fork's build of every workspace package to GitHub Packages
 # (npm.pkg.github.com) so other repositories in this organization can install
-# it. Independent of `release.yml`, which publishes the upstream `@eigenpal/*`
-# packages to npmjs.org — this workflow touches neither npmjs.org nor the
-# changeset queue.
+# it. This is the only publishing path in this fork: upstream's release.yml
+# (changesets → npmjs.org) is not carried here, so nothing consumes the
+# changeset queue and package.json versions only move when upstream is synced.
 #
 # Scope rename: GitHub Packages only accepts a package whose scope matches the
 # account owning the repository, so `@eigenpal/*` is republished as
@@ -73,7 +73,7 @@ jobs:
 
       # `bun install` runs `prepare` (husky), which points core.hooksPath at the
       # repo's pre-commit hook. Nothing here commits, and the hook would fail on
-      # the rewritten manifests — same reasoning as release.yml.
+      # the rewritten manifests, so take it out of the loop.
       - name: Disable git hooks
         run: git config core.hooksPath /dev/null
 

@@ -231,6 +231,13 @@ Adding adapter prop/ref method:
 
 ## Releasing (changesets)
 
+**This fork does not run the npm release flow.** `release.yml` is not carried
+here, so nothing drains `.changeset/` and nothing publishes `@eigenpal/*`. This
+repo publishes to GitHub Packages instead — see `docs/github-packages.md`, whose
+versions derive from `package.json` + the run number, not from changesets. Add a
+changeset only when the change is headed upstream. The rest of this section
+describes upstream's process and applies once a PR lands there.
+
 Every code PR → `bun changeset` → commit `.changeset/*.md`. Skip only for test/docs/CI-only PRs.
 
 - **Generate the changeset with `bun changeset` — never hand-write the `.changeset/*.md` file.** The interactive prompt picks the correct package name and bump and writes the right frontmatter. Hand-writing risks a wrong/typo'd package name, which crashes the post-merge Release workflow. (It's an interactive TTY command — run it in your own terminal; don't fabricate the file because the prompt is inconvenient.)

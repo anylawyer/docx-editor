@@ -1,5 +1,11 @@
 # Releasing
 
+> **This fork does not run this flow.** `release.yml` is not carried in
+> `anylawyer/docx-editor`, so nothing here publishes to npmjs.org. This fork
+> publishes to GitHub Packages instead — see [github-packages.md](github-packages.md).
+> The document below describes upstream's release process and stays accurate for
+> work headed to `eigenpal/docx-editor`.
+
 This document explains how releases work for the DOCX editor, what every contributor needs to do per PR, and what the maintainer does to ship.
 
 Releases follow the canonical [`changesets/action@v1`](https://github.com/changesets/action) flow:

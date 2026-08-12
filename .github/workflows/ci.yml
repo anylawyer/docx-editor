@@ -3,10 +3,9 @@ name: CI
 # `lint` and `test` run in parallel; `build needs: [lint, test]` so a
 # package can never build before lint has passed (OpenSpec §4.3).
 #
-# Dependabot PRs are handled by dependabot-lockfile.yml (which refreshes
-# bun.lock first and then runs the same checks inline), so we skip them
-# here. GitHub treats skipped required checks as passing since 2022, so
-# branch protection still works.
+# Dependabot PRs are still skipped below. Upstream routes them to
+# dependabot-lockfile.yml, which refreshed bun.lock and re-ran these checks
+# inline; this fork does not run Dependabot, so the skip is simply inert.
 
 on:
   push:
