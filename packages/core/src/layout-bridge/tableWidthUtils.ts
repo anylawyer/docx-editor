@@ -130,6 +130,17 @@ export function normalizeTableColumnWidths(
 }
 
 /**
+ * Narrowest column an autofit grid can plausibly describe: the default cell
+ * side margins alone (2 × 108 twips, §17.4.42) — a column narrower than its
+ * own padding cannot display any content. Word always bakes laid-out widths
+ * into `w:tblGrid`, so real files never have a whole grid below this; the
+ * generators AI tooling uses do (`docx` npm defaults every `gridCol` to 100
+ * twips when no widths are given), and Word autofits those on open instead
+ * of honoring them.
+ */
+const MIN_PLAUSIBLE_AUTOFIT_COLUMN_PX = twipsToPixels(216);
+
+/**
  * Resolve a table's per-column pixel widths from its grid metadata and width
  * budget — the width half of `measureTableBlock`, with NO cell-content
  * measurement. Factored out so a caller that only needs widths (e.g. deciding
@@ -143,6 +154,18 @@ export function resolveTableColumnWidths(tableBlock: TableBlock, contentWidth: n
   const explicitWidthPx = resolveTableWidthPx(tableBlock.width, tableBlock.widthType, contentWidth);
   const colCount = countTableColumns(tableBlock);
   const targetWidth = explicitWidthPx ?? contentWidth;
+
+  // Autofit table with no usable width and a grid of placeholder-narrow
+  // columns: discard the grid and fall back to an even split of the budget
+  // (same as a missing grid). Word ignores such grids and autofits.
+  if (
+    columnWidths.length > 0 &&
+    explicitWidthPx === undefined &&
+    tableBlock.tableLayout !== 'fixed' &&
+    columnWidths.every((w) => w < MIN_PLAUSIBLE_AUTOFIT_COLUMN_PX)
+  ) {
+    columnWidths = [];
+  }
 
   if (tableBlock.rows.length > 0) {
     columnWidths = normalizeTableColumnWidths(columnWidths, colCount, targetWidth);

@@ -1,5 +1,10 @@
 import { describe, test, expect } from 'bun:test';
-import { resolveTableWidthPx, normalizeTableColumnWidths } from '../tableWidthUtils';
+import {
+  resolveTableWidthPx,
+  normalizeTableColumnWidths,
+  resolveTableColumnWidths,
+} from '../tableWidthUtils';
+import type { TableBlock } from '../../layout-engine';
 
 describe('resolveTableWidthPx', () => {
   test('dxa: twips converted to pixels', () => {
@@ -44,5 +49,48 @@ describe('normalizeTableColumnWidths', () => {
 
   test('all zero returns even split of target', () => {
     expect(normalizeTableColumnWidths([0, 0, 0], 3, 300)).toEqual([100, 100, 100]);
+  });
+});
+
+describe('resolveTableColumnWidths — degenerate autofit grids', () => {
+  function makeTable(overrides: Partial<TableBlock>, cols = 3): TableBlock {
+    const cells = Array.from({ length: cols }, (_, i) => ({ id: i, blocks: [] }));
+    return {
+      kind: 'table',
+      id: 0,
+      rows: [{ id: 100, cells }],
+      ...overrides,
+    };
+  }
+
+  test('autofit + no width + placeholder grid (docx npm gridCol w=100) → even split', () => {
+    // 100 twips ≈ 6.7px per column — narrower than the default cell margins.
+    const table = makeTable({ columnWidths: [6.7, 6.7, 6.7], width: 0, widthType: 'auto' });
+    const widths = resolveTableColumnWidths(table, 624);
+    expect(widths).toHaveLength(3);
+    for (const w of widths) expect(w).toBeCloseTo(208, 0);
+  });
+
+  test('fixed layout keeps a narrow grid literally (Word honors it)', () => {
+    const table = makeTable({
+      columnWidths: [6.7, 6.7, 6.7],
+      width: 0,
+      widthType: 'auto',
+      tableLayout: 'fixed',
+    });
+    const widths = resolveTableColumnWidths(table, 624);
+    for (const w of widths) expect(w).toBeCloseTo(6.7, 1);
+  });
+
+  test('a single narrow spacer column among wide ones is preserved', () => {
+    const table = makeTable({ columnWidths: [7, 300, 317], width: 0, widthType: 'auto' });
+    expect(resolveTableColumnWidths(table, 624)).toEqual([7, 300, 317]);
+  });
+
+  test('explicit table width rescales a narrow grid instead of discarding it', () => {
+    // 9360 twips = 624px target; ratios (all equal) spread across it.
+    const table = makeTable({ columnWidths: [6.7, 6.7, 6.7], width: 9360, widthType: 'dxa' });
+    const widths = resolveTableColumnWidths(table, 624);
+    for (const w of widths) expect(w).toBeCloseTo(208, 0);
   });
 });

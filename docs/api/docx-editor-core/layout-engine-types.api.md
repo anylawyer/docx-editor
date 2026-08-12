@@ -550,6 +550,7 @@ export type TableBlock = {
     columnWidths?: number[];
     width?: number;
     widthType?: string;
+    tableLayout?: 'fixed' | 'autofit';
     justification?: 'left' | 'center' | 'right';
     bidi?: boolean;
     indent?: number;
