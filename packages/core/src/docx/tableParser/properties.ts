@@ -38,8 +38,39 @@ import { findChild, getAttribute, parseNumericAttribute, type XmlElement } from 
  * @param element - Element with w:w and w:type attributes
  * @returns Parsed measurement or undefined
  */
+/** `%`-suffixed percentage per ST_Percentage (e.g. `w:w="100%"`). */
+const PERCENT_VALUE_RE = /^-?\d+(?:\.\d+)?%$/;
+/** ST_UniversalMeasure (e.g. `w:w="0.5in"`, `"12pt"`). */
+const UNIVERSAL_MEASURE_RE = /^-?\d+(?:\.\d+)?(mm|cm|in|pt|pc|pi)$/;
+const TWIPS_PER_UNIT: Record<string, number> = {
+  in: 1440,
+  pt: 20,
+  pc: 240,
+  pi: 240,
+  cm: 1440 / 2.54,
+  mm: 144 / 2.54,
+};
+
 export function parseTableMeasurement(element: XmlElement | null): TableMeasurement | undefined {
   if (!element) return undefined;
+
+  // ST_MeasurementOrPercent also admits string forms: a `%`-suffixed
+  // percentage ("100%" = 100%, vs the unqualified fiftieths form where
+  // 5000 = 100%) and a universal measure ("0.5in"). Generators (notably the
+  // `docx` npm library AI tooling uses) emit the `%` form; `parseInt` would
+  // silently read "100%" as 100 fiftieths = 2% and collapse the table.
+  // Normalize here at the parse boundary so every consumer sees fiftieths
+  // or twips.
+  const raw = getAttribute(element, 'w', 'w')?.trim();
+  if (raw && PERCENT_VALUE_RE.test(raw)) {
+    return { value: Math.round(parseFloat(raw) * 50), type: 'pct' };
+  }
+  if (raw) {
+    const unit = raw.match(UNIVERSAL_MEASURE_RE)?.[1];
+    if (unit) {
+      return { value: Math.round(parseFloat(raw) * TWIPS_PER_UNIT[unit]), type: 'dxa' };
+    }
+  }
 
   const value = parseNumericAttribute(element, 'w', 'w') ?? 0;
   const typeStr = getAttribute(element, 'w', 'type') ?? 'dxa';

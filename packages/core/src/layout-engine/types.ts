@@ -474,6 +474,8 @@ export type TableBlock = {
   width?: number;
   /** Table width type ('auto', 'pct', 'dxa', 'nil'). */
   widthType?: string;
+  /** `w:tblLayout` algorithm; absent means autofit (§17.4.52). */
+  tableLayout?: 'fixed' | 'autofit';
   /** Table horizontal alignment */
   justification?: 'left' | 'center' | 'right';
   /** Visual RTL column order (`w:bidiVisual`): painter renders logical column 0 rightmost. */

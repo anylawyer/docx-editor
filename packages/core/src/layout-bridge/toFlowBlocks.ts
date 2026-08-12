@@ -581,6 +581,7 @@ function convertTable(node: PMNode, startPos: number, options: ToFlowBlocksOptio
     columnWidths,
     width,
     widthType,
+    tableLayout: (node.attrs.tableLayout as 'fixed' | 'autofit' | null) ?? undefined,
     justification,
     bidi: node.attrs.bidi || undefined,
     indent: indentPx,

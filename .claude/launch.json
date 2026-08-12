@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "react-demo",
+      "runtimeExecutable": "bun",
+      "runtimeArgs": ["run", "--filter", "./examples/vite", "dev"],
+      "port": 5173
+    }
+  ]
+}

@@ -1,0 +1,147 @@
+name: Publish to GitHub Packages
+
+# Publishes this fork's build of every workspace package to GitHub Packages
+# (npm.pkg.github.com) so other repositories in this organization can install
+# it. This is the only publishing path in this fork: upstream's release.yml
+# (changesets → npmjs.org) is not carried here, so nothing consumes the
+# changeset queue and package.json versions only move when upstream is synced.
+#
+# Scope rename: GitHub Packages only accepts a package whose scope matches the
+# account owning the repository, so `@eigenpal/*` is republished as
+# `@<owner>/*`. scripts/publish-github-packages.mjs rewrites the manifests and
+# the built dist/ (the adapters import core by package name, so renaming only
+# the manifests would leave them resolving to upstream's npmjs build) and pins
+# every internal dependency to the exact version published here.
+#
+# Versions: GitHub Packages is immutable, so every publish needs a fresh
+# version. A push to main publishes `<current>-fork.<run number>`; a manual run
+# can pass an exact version instead.
+#
+# Consuming from another repo in this org: see docs/github-packages.md.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Exact version to publish. Blank = <current>-fork.<run number>'
+        required: false
+        type: string
+      dist_tag:
+        description: 'npm dist-tag to move to this version'
+        required: false
+        default: 'latest'
+        type: string
+      dry_run:
+        description: 'Build and pack only — do not upload'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: publish-github-packages
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write # push to npm.pkg.github.com via GITHUB_TOKEN
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6.0.3
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.11'
+
+      # Writes the .npmrc that points this org's scope at GitHub Packages and
+      # reads the token from NODE_AUTH_TOKEN at publish time.
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@${{ github.repository_owner }}'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # `bun install` runs `prepare` (husky), which points core.hooksPath at the
+      # repo's pre-commit hook. Nothing here commits, and the hook would fail on
+      # the rewritten manifests, so take it out of the loop.
+      - name: Disable git hooks
+        run: git config core.hooksPath /dev/null
+
+      - name: Type check
+        run: bun run typecheck
+
+      - name: Unit tests
+        run: bun test
+
+      - name: Build packages
+        run: bun run build:packages
+        env:
+          # tsup's dts worker loads the full TS program; core's entries OOM
+          # under the default 1.5 GB heap.
+          NODE_OPTIONS: --max-old-space-size=8192
+
+      # Inputs are attacker-controllable on workflow_dispatch, so they reach the
+      # shell as env vars rather than `${{ }}` interpolation.
+      - name: Resolve version
+        id: resolve
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          base=$(jq -r .version packages/core/package.json)
+          if [ -n "$INPUT_VERSION" ]; then
+            version="$INPUT_VERSION"
+          else
+            version="${base}-fork.${{ github.run_number }}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Publishing version $version (workspace base $base)"
+
+      - name: Publish packages
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.resolve.outputs.version }}
+          DIST_TAG: ${{ inputs.dist_tag || 'latest' }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          OWNER: ${{ github.repository_owner }}
+          REPO: ${{ github.repository }}
+        run: |
+          args=(--scope "$OWNER" --version "$VERSION" --tag "$DIST_TAG" --repo "$REPO" --publish)
+          if [ "$DRY_RUN" = "true" ]; then
+            args+=(--dry-run)
+          fi
+          node scripts/publish-github-packages.mjs "${args[@]}"
+
+      # Default `success()` gating on purpose: a failed publish must not print
+      # an install line for a version that was never uploaded.
+      - name: Summary
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+          DIST_TAG: ${{ inputs.dist_tag || 'latest' }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          {
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "### Dry run — nothing uploaded"
+            else
+              echo "### Published \`$VERSION\` to GitHub Packages"
+            fi
+            echo
+            echo "Scope: \`@$OWNER\` · dist-tag: \`$DIST_TAG\` · commit: \`${GITHUB_SHA:0:7}\`"
+            echo
+            echo '```bash'
+            echo "npm install @$OWNER/docx-editor-react@$VERSION"
+            echo '```'
+            echo
+            echo "See \`docs/github-packages.md\` for consumer setup (the registry needs a token even for public packages)."
+          } >> "$GITHUB_STEP_SUMMARY"
